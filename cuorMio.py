@@ -3,6 +3,7 @@ import pickle
 import datetime
 import json
 import sys
+from zoneinfo import ZoneInfo
 import time
 import requests
 from dateutil import parser
@@ -239,6 +240,24 @@ def extract_order_info(order):
     }
 
 
+
+def check_run_script():
+    # Ora corrente in fuso "Europe/Rome"
+    rome_now = datetime.datetime.now(ZoneInfo("Europe/Rome"))
+    # Controlliamo se e' martedi e ora=23:59
+    # schedule.run_pending() gira ogni tot secondi, quindi dobbiamo
+    # concedere un "range" di orari (23:59 ± 1 minuto) oppure esatto
+
+    if rome_now.weekday() == 1:  # 0=lunedì, 1=martedì, ...
+        if rome_now.hour == 23 and rome_now.minute == 59:
+            print("** E’ martedi 23:59 in Italia! Eseguo run_script() **")
+            run_script()
+        else:
+            print(f"Ora Roma {rome_now}, non e’ martedi 23:59, skip.")
+    else:
+        print(f"Ora Roma {rome_now}, non e’ martedi, skip.")
+
+
 # ============== FUNZIONE PRINCIPALE DI LAVORO ==============
 def run_script():
     """
@@ -322,16 +341,14 @@ def run_script():
 # ============== SCHEDULER (main) ==============
 def main():
     import schedule
+    # Pianifichiamo di controllare ogni minuto
+    schedule.every(1).minutes.do(check_run_script)
+    print("Scheduler avviato (controllo ogni minuto l’ora in Europe/Rome).")
 
-    
-    schedule.every().tuesday.at("23:59").do(run_script)
-    
-    print("Scheduler avviato. Ogni martedì alle 23:59 partirà il job.")
-    
     while True:
         schedule.run_pending()
-        time.sleep(60) 
-        print("ancora no")
+        time.sleep(10)
+        
 
 
 if __name__ == "__main__":
