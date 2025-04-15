@@ -7,20 +7,20 @@ import time
 import requests  # Per le chiamate HTTP a ActiveCampaign
 from dateutil import parser
 
-# ----- CONFIGURAZIONE SHOPIFY -----
-SHOP_URL = "cuormio.myshopify.com"  # Dominio del negozio
-API_VERSION = "2023-04"             # Versione API
-ACCESS_TOKEN = "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"  # Token della custom app
+# ===== LEGGIAMO LE VARIABILI SENSIBILI DALL'AMBIENTE =====
+SHOP_URL = os.environ.get("SHOP_URL", "")  # es. cuormio.myshopify.com
+API_VERSION = os.environ.get("API_VERSION", "")                   # Versione API Shopify (fisso)
+ACCESS_TOKEN = os.environ.get("ACCESS_TOKEN", "")  # Token Shopify
+
+AC_BASE_URL = os.environ.get("AC_BASE_URL", "")  # es. https://petwellnessdilucaderiu.api-us1.com
+AC_API_KEY = os.environ.get("AC_API_KEY", "")    # Chiave ActiveCampaign
 
 # ----- CONFIGURAZIONE GOOGLE SHEETS -----
 SPREADSHEET_ID = "1vqX3vOoQgIeJu9nSwLw11Y3UU_-YTFVu_V8wwHLUvkA"
-SHEET_NAME = "tab primi e secondi ordini"  # Nome del foglio
+SHEET_NAME = os.environ.get("SHEET_NAME", "")
 CLIENT_SECRET_FILE = "client_secret.json"
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 
-# ----- CONFIGURAZIONE ACTIVECAMPAIGN -----
-AC_BASE_URL = "https://petwellnessdilucaderiu.api-us1.com"
-AC_API_KEY = "634821e9e4623aee01d3d2622b68c157b259d6b00f8057ac72ea05c6b55bb51a1e76eb6f"
 
 # ----- CONFIGURAZIONE CLIENT SECRET (Google) -----
 client_secret_data = {
