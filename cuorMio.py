@@ -4,25 +4,24 @@ import datetime
 import json
 import sys
 import time
-import requests  # Per le chiamate HTTP a ActiveCampaign
+import requests
 from dateutil import parser
 
-# ===== LEGGIAMO LE VARIABILI SENSIBILI DALL'AMBIENTE =====
-SHOP_URL = os.environ.get("SHOP_URL", "")  # es. cuormio.myshopify.com
-API_VERSION = os.environ.get("API_VERSION", "")                   # Versione API Shopify (fisso)
-ACCESS_TOKEN = os.environ.get("ACCESS_TOKEN", "")  # Token Shopify
+# ============== CARICAMENTO VARIABILI D'AMBIENTE ==============
+SHOP_URL = os.environ.get("SHOP_URL", "")  
+API_VERSION = os.environ.get("API_VERSION", "")      # es: "2023-04"
+ACCESS_TOKEN = os.environ.get("ACCESS_TOKEN", "")     # Token Shopify
 
-AC_BASE_URL = os.environ.get("AC_BASE_URL", "")  # es. https://petwellnessdilucaderiu.api-us1.com
-AC_API_KEY = os.environ.get("AC_API_KEY", "")    # Chiave ActiveCampaign
+AC_BASE_URL = os.environ.get("AC_BASE_URL", "")  
+AC_API_KEY = os.environ.get("AC_API_KEY", "")         # Chiave ActiveCampaign
 
-# ----- CONFIGURAZIONE GOOGLE SHEETS -----
+# ============== CONFIGURAZIONE GOOGLE SHEETS ==============
 SPREADSHEET_ID = "1vqX3vOoQgIeJu9nSwLw11Y3UU_-YTFVu_V8wwHLUvkA"
-SHEET_NAME = os.environ.get("SHEET_NAME", "")
+SHEET_NAME = os.environ.get("SHEET_NAME", "")         # Nome del foglio da environment
 CLIENT_SECRET_FILE = "client_secret.json"
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 
-
-# ----- CONFIGURAZIONE CLIENT SECRET (Google) -----
+# Dati per client_secret (Google). In molti casi potresti prendere anche questi da env, ma qui li lasciamo così.
 client_secret_data = {
     "installed": {
         "client_id": "1023871584063-q6d2c00ea3ig0u3d7b5tj2a43do5bif5.apps.googleusercontent.com",
@@ -40,25 +39,18 @@ if not os.path.exists(CLIENT_SECRET_FILE):
         json.dump(client_secret_data, f, indent=4)
     print(f"{CLIENT_SECRET_FILE} creato con i dati in chiaro.")
 
-# ----- IMPORT PER GOOGLE SHEETS -----
+
+# ============== IMPORT GOOGLE E SHOPIFY ==============
 from google.auth.transport.requests import Request
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
-
-# ----- IMPORT PER SHOPIFY -----
 import shopify
 
-# ====================================================
-# FUNZIONE PER CREARE FIELDVALUE SU ACTIVECAMPAIGN
-# ====================================================
 
+# ============== FUNZIONI SUPPORTO ACTIVECAMPAIGN ==============
 def create_field_value(contact_id, field_id, value):
     """
-    Esegue una POST per creare un fieldValue con:
-      - contact: l'ID del contatto
-      - field: l'ID del campo custom
-      - value: il valore da assegnare (ad esempio la data dell'acquisto)
-    Stampa e restituisce l'ID del record creato (se creato correttamente).
+    Crea un fieldValue (record custom field) su ActiveCampaign.
     """
     headers = {"Api-Token": AC_API_KEY, "Content-Type": "application/json"}
     url = f"{AC_BASE_URL}/api/3/fieldValues"
@@ -79,14 +71,9 @@ def create_field_value(contact_id, field_id, value):
         print(f"[ERRORE] Creazione fallita per contatto {contact_id}, campo {field_id}: {response.text}")
         return None
 
-# ====================================================
-# FUNZIONE PER CERCARE IL CONTATTO DA EMAIL
-# ====================================================
-
 def get_contact_by_email(email):
     """
-    Recupera il contatto da ActiveCampaign filtrando per email.
-    Restituisce il primo contatto trovato oppure None.
+    Cerca il contatto su ActiveCampaign via email.
     """
     headers = {"Api-Token": AC_API_KEY}
     url = f"{AC_BASE_URL}/api/3/contacts?filters[email]={email}"
@@ -103,14 +90,9 @@ def get_contact_by_email(email):
         print("Errore nella richiesta del contatto:", response.text)
         return None
 
-# ====================================================
-# FUNZIONI PER GOOGLE SHEETS
-# ====================================================
 
+# ============== FUNZIONI SUPPORTO GOOGLE SHEETS ==============
 def init_google_sheets_service():
-    """
-    Inizializza il servizio per Google Sheets utilizzando OAuth.
-    """
     creds = None
     if os.path.exists('token.pickle'):
         with open('token.pickle', 'rb') as token:
@@ -136,6 +118,9 @@ def read_sheet(service):
     return result.get('values', [])
 
 def cerca_data_primo_ordine(service, email):
+    """
+    Cerca nel Google Sheet la data del primo ordine (riga dove colonna B=1 e colonna C = email).
+    """
     rows = read_sheet(service)
     for row in rows:
         if len(row) >= 3 and row[2].strip().lower() == email.strip().lower() and row[1] == "1":
@@ -143,6 +128,9 @@ def cerca_data_primo_ordine(service, email):
     return "non trovata"
 
 def insert_row_to_sheet(service, values_list):
+    """
+    Inserisce una riga in coda al foglio.
+    """
     current_data = read_sheet(service)
     next_row = len(current_data) + 1
     range_to_update = f"{SHEET_NAME}!A{next_row}:K{next_row}"
@@ -156,48 +144,78 @@ def insert_row_to_sheet(service, values_list):
     print(f"Riga inserita in {range_to_update}: {values_list}")
     return result
 
-# ====================================================
-# FUNZIONI PER SHOPIFY E ORDINI
-# ====================================================
 
+# ============== FUNZIONI SUPPORTO SHOPIFY ==============
 def init_shopify_session():
-    """
-    Inizializza la sessione per Shopify utilizzando il dominio, la versione API e l'ACCESS_TOKEN.
-    """
     session = shopify.Session(SHOP_URL, API_VERSION, ACCESS_TOKEN)
     shopify.ShopifyResource.activate_session(session)
     print("Shopify session inizializzata.")
 
+def get_last_week_range():
+    """
+    Calcola l'intervallo da mercoledì 00:00 (della settimana scorsa) a martedì 23:59 (di questa settimana).
+    Supponendo che lo script giri di martedì sera.
+    """
+    now = datetime.datetime.now()  # es. martedì alle 23:00/23:59
+    # Voglio calcolare:
+    #  - mercoledì 00:00 (6 giorni fa)
+    #  - martedì 23:59 di oggi
+
+    # "today" come data (senza orario)
+    today_date = now.date()
+    # se ad esempio today_date = 2025-04-22 (un martedì)
+    # mercoledì scorso = today_date - 6 giorni (2025-04-16)
+    wednesday_date = today_date - datetime.timedelta(days=6)
+
+    # mercoledì 00:00
+    start = datetime.datetime(
+        wednesday_date.year, wednesday_date.month, wednesday_date.day,
+        0, 0, 0
+    )
+
+    # martedì 23:59
+    end = datetime.datetime(
+        today_date.year, today_date.month, today_date.day,
+        23, 59, 59
+    )
+
+    # Convertiamo in stringhe ISO con suffisso Z
+    created_at_min = start.isoformat() + "Z"
+    created_at_max = end.isoformat() + "Z"
+    return created_at_min, created_at_max
+
 def get_orders_in_range():
     """
-    Recupera gli ordini da Shopify in un intervallo di date definito.
-    Modifica le date in base alle tue necessità.
+    Recupera gli ordini dall'ultima settimana:
+      - da mercoledì 00:00 a martedì 23:59 (ora locale del server).
     """
-    created_at_min = "2025-04-11T00:00:00Z"
-    created_at_max = "2025-04-14T23:59:59Z"
-    orders = shopify.Order.find(created_at_min=created_at_min, created_at_max=created_at_max, status='any', limit=250)
-    orders.reverse()  # Ordine cronologico ascendente
-    print(f"Trovati {len(orders)} ordini dal 11/04/2025 al 14/04/2025.")
+    created_at_min, created_at_max = get_last_week_range()
+    orders = shopify.Order.find(
+        created_at_min=created_at_min,
+        created_at_max=created_at_max,
+        status='any',
+        limit=250
+    )
+    orders.reverse()
+    print(f"Trovati {len(orders)} ordini da {created_at_min} a {created_at_max}.")
     return orders
 
 def extract_order_info(order):
-    """
-    Estrae informazioni rilevanti dall'ordine.
-    """
     dataAcquisto = order.created_at
     email = getattr(order, 'email', None)
     if not email and hasattr(order, 'customer') and order.customer:
         email = order.customer.email
+
     landing = getattr(order, 'landing_site', "") or ""
     landing_lower = ""
+    campagnaDiProvenienza = ""
     if landing and "utm_campaign=" in landing:
         try:
             campagnaDiProvenienza = landing.split("utm_campaign=")[1].split("&")[0]
             landing_lower = landing.lower()
-        except Exception as e:
+        except Exception:
             campagnaDiProvenienza = ""
-    else:
-        campagnaDiProvenienza = ""
+
     canale_di_provenienza = ""
     if "facebook" in landing_lower or "fbclid" in landing_lower:
         canale_di_provenienza = "FB"
@@ -205,10 +223,12 @@ def extract_order_info(order):
         canale_di_provenienza = "IG"
     else:
         canale_di_provenienza = getattr(order, 'source_name', "")
+
     totaleOrdine = getattr(order, 'total_price', "")
     nomeProdotto = ""
     if order.line_items and len(order.line_items) > 0:
         nomeProdotto = order.line_items[0].title
+
     return {
         "dataAcquisto": dataAcquisto,
         "email": email,
@@ -218,18 +238,20 @@ def extract_order_info(order):
         "nomeProdotto": nomeProdotto
     }
 
-# ====================================================
-# FUNZIONE MAIN
-# ====================================================
 
-def main():
+# ============== FUNZIONE PRINCIPALE DI LAVORO ==============
+def run_script():
+    """
+    Esegue la logica Shopify -> Google Sheets -> ActiveCampaign
+    prendendo gli ordini dall'ultima settimana (mercoledì -> martedì).
+    """
     init_shopify_session()
     gs_service = init_google_sheets_service()
-    
+
     orders = get_orders_in_range()
     
     for order in orders:
-        time.sleep(4)  # Per evitare di superare i rate limit
+        time.sleep(4)  # Per evitare rate limit
         if not hasattr(order, 'customer') or order.customer is None:
             continue
 
@@ -238,25 +260,21 @@ def main():
             customer = shopify.Customer.find(order.customer.id)
             orders_count = customer.orders_count
 
-        # Ci interessa solo il 1° o 2° acquisto
         if orders_count not in [1, 2]:
             continue
 
         order_info = extract_order_info(order)
         raw_date = order_info["dataAcquisto"]
         date_obj = parser.parse(raw_date)
-        # Formato data (dd/mm/YYYY). Se necessario, cambia in %Y-%m-%d
         formatted_date = date_obj.strftime("%d/%m/%Y")
-        
-        # Cerchiamo il contatto in AC via email
+
         ac_contact = get_contact_by_email(order_info["email"])
         if not ac_contact:
             print(f"Contatto ActiveCampaign non trovato per {order_info['email']}")
             continue
-        
+
         ac_contact_id = ac_contact.get("id")
-        
-        # Aggiorniamo Google Sheet
+
         if orders_count == 1:
             tot = f"€ {order_info['totaleOrdine']}"
             new_row = [
@@ -270,12 +288,12 @@ def main():
                 order_info["nomeProdotto"]
             ]
             insert_row_to_sheet(gs_service, new_row)
-            
-            # PRIMO acquisto => POST a field 39 (Data primo acquisto) e field 38 (Data ultimo acquisto)
+
+            # PRIMO ACQUISTO => field 39 (Data primo acquisto) + field 38 (Data ultimo acquisto)
             id_field39 = create_field_value(ac_contact_id, "39", formatted_date)
             id_field38 = create_field_value(ac_contact_id, "38", formatted_date)
             print(f"FieldValue creato: id {id_field39} (Data primo acquisto), id {id_field38} (Data ultimo acquisto).")
-            
+
         elif orders_count == 2:
             tot = f"€ {order_info['totaleOrdine']}"
             data_primo_ordine = cerca_data_primo_ordine(gs_service, order_info["email"])
@@ -292,27 +310,27 @@ def main():
                 order_info["nomeProdotto"]
             ]
             insert_row_to_sheet(gs_service, new_row)
-            
-            # SECONDO acquisto => POST a field 38 (Data ultimo acquisto) e field 40 (Data secondo acquisto)
+
+            # SECONDO ACQUISTO => field 38 (Data ultimo acquisto) + field 40 (Data secondo acquisto)
             id_field38 = create_field_value(ac_contact_id, "38", formatted_date)
             id_field40 = create_field_value(ac_contact_id, "40", formatted_date)
             print(f"FieldValue creato: id {id_field38} (Data ultimo acquisto), id {id_field40} (Data secondo acquisto).")
-    
+
     print("Processo completato.")
 
+
+# ============== SCHEDULER (main) ==============
 def main():
     import schedule
+
     
-    # Pianifichiamo run_script() ogni martedì alle 23:00
-    schedule.every().tuesday.at("23:00").do(run_script)
+    schedule.every().tuesday.at("23:59").do(run_script)
     
-    print("Scheduler avviato. Ogni martedì alle 23:00 partirà il job.")
+    print("Scheduler avviato. Ogni martedì alle 23:59 partirà il job.")
     
-    # Ciclo infinito per tenere viva l'app e gestire i job
     while True:
         schedule.run_pending()
-        time.sleep(60)  # Controlla ogni 60 secondi se è ora di eseguire un job
-        print("ancora no")
+        time.sleep(60)  
 
 
 if __name__ == "__main__":
