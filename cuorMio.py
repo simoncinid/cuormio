@@ -252,6 +252,7 @@ def extract_order_info(order):
 def check_run_script():
     # Ora corrente in fuso "Europe/Rome"
     rome_now = datetime.datetime.now(ZoneInfo("Europe/Rome"))
+    init_google_sheets_service()
     # Controlliamo se e' martedi e ora=23:59
     # schedule.run_pending() gira ogni tot secondi, quindi dobbiamo
     # concedere un "range" di orari (23:59 ± 1 minuto) oppure esatto
