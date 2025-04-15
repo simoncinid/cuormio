@@ -330,7 +330,8 @@ def main():
     
     while True:
         schedule.run_pending()
-        time.sleep(60)  
+        time.sleep(60) 
+        print("ancora no")
 
 
 if __name__ == "__main__":
