@@ -1,54 +1,47 @@
 import os
-import pickle
 import datetime
 import json
 import sys
-from zoneinfo import ZoneInfo
 import time
 import requests
 from dateutil import parser
+from zoneinfo import ZoneInfo
+import schedule
 
-# ============== CARICAMENTO VARIABILI D'AMBIENTE ==============
-SHOP_URL = os.environ.get("SHOP_URL", "")  
-API_VERSION = os.environ.get("API_VERSION", "")      # es: "2023-04"
-ACCESS_TOKEN = os.environ.get("ACCESS_TOKEN", "")     # Token Shopify
+# ======== Variabili d'Ambiente e Configurazioni Principali ========
+SHOP_URL = os.environ.get("SHOP_URL", "")
+API_VERSION = os.environ.get("API_VERSION", "")  # es. "2023-04"
+ACCESS_TOKEN = os.environ.get("ACCESS_TOKEN", "")
 
-AC_BASE_URL = os.environ.get("AC_BASE_URL", "")  
-AC_API_KEY = os.environ.get("AC_API_KEY", "")         # Chiave ActiveCampaign
+AC_BASE_URL = os.environ.get("AC_BASE_URL", "")
+AC_API_KEY = os.environ.get("AC_API_KEY", "")
 
-# ============== CONFIGURAZIONE GOOGLE SHEETS ==============
 SPREADSHEET_ID = "1vqX3vOoQgIeJu9nSwLw11Y3UU_-YTFVu_V8wwHLUvkA"
-SHEET_NAME = os.environ.get("SHEET_NAME", "")         # Nome del foglio da environment
-CLIENT_SECRET_FILE = "client_secret.json"
-SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
-
-# Dati per client_secret (Google). In molti casi potresti prendere anche questi da env, ma qui li lasciamo così.
-client_secret_data = {
-    "installed": {
-        "client_id": "1023871584063-q6d2c00ea3ig0u3d7b5tj2a43do5bif5.apps.googleusercontent.com",
-        "project_id": "trascrizione-intervista-rds",
-        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-        "token_uri": "https://oauth2.googleapis.com/token",
-        "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-        "client_secret": "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",
-        "redirect_uris": ["http://localhost"]
-    }
+SHEET_NAME = os.environ.get("SHEET_NAME", "")  # Nome del foglio
+SERVICE_ACCOUNT_FILE = """
+{
+  "type": "service_account",
+  "project_id": "trascrizione-intervista-rds",
+  "private_key_id": "f73a9d20338b08a010866c56a6f735cea6b56d7f",
+  "private_key": "-----BEGIN PRIVATE KEY-----\\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCgy6cY/uROJQKo\\nYeNAcx+caiZU1ydZtILbr4s62GJXemHHP3nEaclbK2mIS5wqKc5jjWAcqbMTAI4F\\nq939kM4DeMNmEnMqdkhr0fhHkulq+QNmCA3/Fc8o9Qwc4rD4g0NHMBHKR4o+Jj5W\\nfKxsZL+2NBk7h6BAmIjGBXfjgCaTt2OrmsiPPyhDa5nQlelTVwXiRdLf5l/t7+pb\\n4O3A8dmhyzuLhukSv1YDJAZDUICTcclCiOvri5F2w6eippP5MwSTyUsEY+0GVeI5\\nJL7IlgEoWiuCtqrCS5gA515a6RKsqoM1/69K1bCeYRtk243GwLdSOAbxtgqLqA8V\\ntG6S+d+5AgMBAAECggEABISkbdnfrWhx0ixp98okVb9P02t2QhmF4clldqJU5RNd\\nwv0AHWpBi6vFG9zQBwlEsNxsmnGURBDsbLFfG/xhJYzTpL8Y+FT5hPoR6WTx5R0Z\\nINlSF1xUBVkZXYhrI5iAn/P0VAQ9mLB3aPO43pTYJDUDjn4pnRcMJNBLhZt4ugbO\\nN+QRVJyYhku4GcecFyzEhKa0eug28lV0g+RUlDCtnFHbYhsZ5PijC8NF6uk0dRUC\\nwgWeb91ZD/6beKvfaEA73V8YjjzhFuHBMV+hsQ4WaquJ1WssQ1teQvKq5Dp+4hq1\\nEQtn/ZSubA9VHljCJU76iM+CI9B12RSw7kRXfZA2gQKBgQDcRkzyAdLzqDvVw8s6\\nyEQlqpFifx+SSWJWoKLwUfpKGsO0UEKNULlcV45cIN4/6eCM6/7SyZhLFCa0qdeA\\nhqlnI7Slql1u+byO5jd6r2hYLybJ0PLf2Opd9FWGq3fE40qFqrQzz9gWogb6hiJW\\n65uAi71PsWGkK1d/LlOOXSoMGQKBgQC6387QsFOC0YIl2UGy0C9Y9xmx1un+tYbb\\nEYYTDDqqArCLegkRTd7FIr9YOlcX0iotQAkqX37J6tOEn4MXmcpPtm3EGPly5Dxz\\noKlqpk+5IhP2lnJxPdB+VQHpogsKjtYPyjQxLXb2iaCnn0d/1KnteRxCtckDQFXX\\n2dsbBxLkoQKBgHsoCylb/7gfnaS9Hcm14vQ0U6kAboR55zOMCM3Y59m68STFoxAj\\nzB9nDL9R2TFe8B+aaxUrhaykjaeBNm4z3E9AVWYyxJ6hnt0+tlIv9GUpp8Q6wTCK\\ntS7mx1LOV96LPkVR1gMJ+EVfPgugJ171yDGs76G5CWCiov8GxczZJgMxAoGBAJYc\\nWeFBApQ+/zCwCBo/KQlp1HYKkQRNhPpMZUq/tBAFARPI/6eqyZvJgbK5imRUKhUX\\nL0WeWBaSTz5lc8RtgRnvDNVMynQD6ptnHy/QUJICUc7uoxdb9DLGzjaCOCRPAJzG\\nbI5kWv9HJon/ZEvG5IkhlBXyOHooH8y3700SrZaBAoGBAMuPUpJRl356thYU3/vP\\nVu4XDwwPy+mRyjE1jw+3STlmW96JbDUT+nmA2TysM0MVLlrEMKsnZl6Xq5piVjB9\\n9TfE3LCEBntFGxUgRRTInI6AEjv9D43xl323S6pXKivRTzkYlXQEH6v4yPY70Lc3\\nYk07YhItfZPe3pjYHvYmuTD6\\n-----END PRIVATE KEY-----\\n",
+  "client_email": "kpi-marketing-automation@trascrizione-intervista-rds.iam.gserviceaccount.com",
+  "client_id": "111553854552653368425",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/kpi-marketing-automation%40trascrizione-intervista-rds.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
 }
+"""
 
-if not os.path.exists(CLIENT_SECRET_FILE):
-    with open(CLIENT_SECRET_FILE, "w") as f:
-        json.dump(client_secret_data, f, indent=4)
-    print(f"{CLIENT_SECRET_FILE} creato con i dati in chiaro.")
+SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 
-
-# ============== IMPORT GOOGLE E SHOPIFY ==============
-from google.auth.transport.requests import Request
-from google_auth_oauthlib.flow import InstalledAppFlow
+# ======== Import Librerie Google e Shopify ========
+from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 import shopify
 
-
-# ============== FUNZIONI SUPPORTO ACTIVECAMPAIGN ==============
+# ======== ActiveCampaign ========
 def create_field_value(contact_id, field_id, value):
     """
     Crea un fieldValue (record custom field) su ActiveCampaign.
@@ -91,32 +84,17 @@ def get_contact_by_email(email):
         print("Errore nella richiesta del contatto:", response.text)
         return None
 
-
-# ============== FUNZIONI SUPPORTO GOOGLE SHEETS ==============
+# ======== Google Sheets con Service Account ========
 def init_google_sheets_service():
-    creds = None
-    if os.path.exists("token.pickle"):
-        # Carica le credenziali già salvate
-        with open("token.pickle", "rb") as token:
-            creds = pickle.load(token)
-        print("Caricato token.pickle esistente")
-
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-            print("Token rinnovato con successo, salvato in token.pickle.")
-        else:
-            # Su Render non possiamo completare l'OAuth interattivo,
-            # quindi possiamo sollevare un errore o loggare un messaggio:
-            raise RuntimeError("Nessun token valido e non posso fare OAuth su Render.")
-        
-        with open("token.pickle", "wb") as token:
-            pickle.dump(creds, token)
-    
+    """
+    Inizializza il client per Google Sheets usando il Service Account,
+    senza OAuth interattivo e senza token.pickle.
+    """
+    json_data = json.loads(SERVICE_ACCOUNT_FILE)
+    creds = Credentials.from_service_account_info(json_data, scopes=["https://www.googleapis.com/auth/spreadsheets"])
     service = build("sheets", "v4", credentials=creds)
-    print("Google Sheets service inizializzato.")
+    print("Google Sheets service inizializzato (Service Account).")
     return service
-
 
 def read_sheet(service):
     sheet = service.spreadsheets()
@@ -124,26 +102,13 @@ def read_sheet(service):
         spreadsheetId=SPREADSHEET_ID,
         range=SHEET_NAME
     ).execute()
-    return result.get('values', [])
-
-def cerca_data_primo_ordine(service, email):
-    """
-    Cerca nel Google Sheet la data del primo ordine (riga dove colonna B=1 e colonna C = email).
-    """
-    rows = read_sheet(service)
-    for row in rows:
-        if len(row) >= 3 and row[2].strip().lower() == email.strip().lower() and row[1] == "1":
-            return row[0]
-    return "non trovata"
+    return result.get("values", [])
 
 def insert_row_to_sheet(service, values_list):
-    """
-    Inserisce una riga in coda al foglio.
-    """
     current_data = read_sheet(service)
     next_row = len(current_data) + 1
     range_to_update = f"{SHEET_NAME}!A{next_row}:K{next_row}"
-    body = {'values': [values_list]}
+    body = {"values": [values_list]}
     result = service.spreadsheets().values().update(
         spreadsheetId=SPREADSHEET_ID,
         range=range_to_update,
@@ -153,8 +118,14 @@ def insert_row_to_sheet(service, values_list):
     print(f"Riga inserita in {range_to_update}: {values_list}")
     return result
 
+def cerca_data_primo_ordine(service, email):
+    rows = read_sheet(service)
+    for row in rows:
+        if len(row) >= 3 and row[2].strip().lower() == email.strip().lower() and row[1] == "1":
+            return row[0]
+    return "non trovata"
 
-# ============== FUNZIONI SUPPORTO SHOPIFY ==============
+# ======== Shopify ========
 def init_shopify_session():
     session = shopify.Session(SHOP_URL, API_VERSION, ACCESS_TOKEN)
     shopify.ShopifyResource.activate_session(session)
@@ -162,42 +133,18 @@ def init_shopify_session():
 
 def get_last_week_range():
     """
-    Calcola l'intervallo da mercoledì 00:00 (della settimana scorsa) a martedì 23:59 (di questa settimana).
-    Supponendo che lo script giri di martedì sera.
+    Da mercoledì 00:00 (6 gg fa) a martedì 23:59 (oggi).
     """
-    now = datetime.datetime.now()  # es. martedì alle 23:00/23:59
-    # Voglio calcolare:
-    #  - mercoledì 00:00 (6 giorni fa)
-    #  - martedì 23:59 di oggi
-
-    # "today" come data (senza orario)
+    now = datetime.datetime.now()
     today_date = now.date()
-    # se ad esempio today_date = 2025-04-22 (un martedì)
-    # mercoledì scorso = today_date - 6 giorni (2025-04-16)
     wednesday_date = today_date - datetime.timedelta(days=6)
-
-    # mercoledì 00:00
-    start = datetime.datetime(
-        wednesday_date.year, wednesday_date.month, wednesday_date.day,
-        0, 0, 0
-    )
-
-    # martedì 23:59
-    end = datetime.datetime(
-        today_date.year, today_date.month, today_date.day,
-        23, 59, 59
-    )
-
-    # Convertiamo in stringhe ISO con suffisso Z
+    start = datetime.datetime(wednesday_date.year, wednesday_date.month, wednesday_date.day, 0, 0, 0)
+    end = datetime.datetime(today_date.year, today_date.month, today_date.day, 23, 59, 59)
     created_at_min = start.isoformat() + "Z"
     created_at_max = end.isoformat() + "Z"
     return created_at_min, created_at_max
 
 def get_orders_in_range():
-    """
-    Recupera gli ordini dall'ultima settimana:
-      - da mercoledì 00:00 a martedì 23:59 (ora locale del server).
-    """
     created_at_min, created_at_max = get_last_week_range()
     orders = shopify.Order.find(
         created_at_min=created_at_min,
@@ -222,7 +169,7 @@ def extract_order_info(order):
         try:
             campagnaDiProvenienza = landing.split("utm_campaign=")[1].split("&")[0]
             landing_lower = landing.lower()
-        except Exception:
+        except:
             campagnaDiProvenienza = ""
 
     canale_di_provenienza = ""
@@ -247,44 +194,22 @@ def extract_order_info(order):
         "nomeProdotto": nomeProdotto
     }
 
-
-
-def check_run_script():
-    # Ora corrente in fuso "Europe/Rome"
-    rome_now = datetime.datetime.now(ZoneInfo("Europe/Rome"))
-    init_google_sheets_service()
-    # Controlliamo se e' martedi e ora=23:59
-    # schedule.run_pending() gira ogni tot secondi, quindi dobbiamo
-    # concedere un "range" di orari (23:59 ± 1 minuto) oppure esatto
-
-    if rome_now.weekday() == 1:  # 0=lunedì, 1=martedì, ...
-        if rome_now.hour == 23 and rome_now.minute == 59:
-            print("** E’ martedi 23:59 in Italia! Eseguo run_script() **")
-            run_script()
-        else:
-            print(f"Ora Roma {rome_now}, non e’ martedi 23:59, skip.")
-    else:
-        print(f"Ora Roma {rome_now}, non e’ martedi, skip.")
-
-
-# ============== FUNZIONE PRINCIPALE DI LAVORO ==============
+# ======== LOGICA PRINCIPALE ========
 def run_script():
     """
-    Esegue la logica Shopify -> Google Sheets -> ActiveCampaign
-    prendendo gli ordini dall'ultima settimana (mercoledì -> martedì).
+    Esegue la logica (Shopify -> Google Sheets -> ActiveCampaign)
     """
     init_shopify_session()
     gs_service = init_google_sheets_service()
 
     orders = get_orders_in_range()
-    
     for order in orders:
-        time.sleep(4)  # Per evitare rate limit
-        if not hasattr(order, 'customer') or order.customer is None:
+        time.sleep(4)
+        if not hasattr(order, "customer") or order.customer is None:
             continue
 
-        orders_count = getattr(order.customer, 'orders_count', 0)
-        if orders_count == 0 and hasattr(order.customer, 'id'):
+        orders_count = getattr(order.customer, "orders_count", 0)
+        if orders_count == 0 and hasattr(order.customer, "id"):
             customer = shopify.Customer.find(order.customer.id)
             orders_count = customer.orders_count
 
@@ -317,13 +242,14 @@ def run_script():
             ]
             insert_row_to_sheet(gs_service, new_row)
 
-            # PRIMO ACQUISTO => field 39 (Data primo acquisto) + field 38 (Data ultimo acquisto)
-            id_field39 = create_field_value(ac_contact_id, "39", formatted_date)
-            id_field38 = create_field_value(ac_contact_id, "38", formatted_date)
+            # Aggiorna campi AC
+            id_field39 = create_field_value(ac_contact_id, "39", formatted_date) # Data primo acquisto
+            id_field38 = create_field_value(ac_contact_id, "38", formatted_date) # Data ultimo acquisto
             print(f"FieldValue creato: id {id_field39} (Data primo acquisto), id {id_field38} (Data ultimo acquisto).")
 
         elif orders_count == 2:
             tot = f"€ {order_info['totaleOrdine']}"
+            # Cerchiamo la data del primo ordine nel GSheet
             data_primo_ordine = cerca_data_primo_ordine(gs_service, order_info["email"])
             new_row = [
                 formatted_date,
@@ -339,26 +265,36 @@ def run_script():
             ]
             insert_row_to_sheet(gs_service, new_row)
 
-            # SECONDO ACQUISTO => field 38 (Data ultimo acquisto) + field 40 (Data secondo acquisto)
-            id_field38 = create_field_value(ac_contact_id, "38", formatted_date)
-            id_field40 = create_field_value(ac_contact_id, "40", formatted_date)
+            # Aggiorna campi AC
+            id_field38 = create_field_value(ac_contact_id, "38", formatted_date) # Data ultimo acquisto
+            id_field40 = create_field_value(ac_contact_id, "40", formatted_date) # Data secondo acquisto
             print(f"FieldValue creato: id {id_field38} (Data ultimo acquisto), id {id_field40} (Data secondo acquisto).")
 
     print("Processo completato.")
 
+def check_run_script():
+    """
+    Ogni minuto, controlliamo se è martedì 23:59 in ora italiana,
+    e se sì, eseguiamo `run_script()`.
+    """
+    rome_now = datetime.datetime.now(ZoneInfo("Europe/Rome"))
+    # 0 = Lun, 1 = Mar, 2 = Mer...
+    if rome_now.weekday() == 1:  # 1 = Martedì
+        if rome_now.hour == 23 and rome_now.minute == 59:
+            print("** E’ martedì 23:59 in Italia! Eseguo run_script() **")
+            run_script()
+        else:
+            print(f"Ora Roma {rome_now}, non è martedì 23:59, skip.")
+    else:
+        print(f"Ora Roma {rome_now}, non è martedì, skip.")
 
-# ============== SCHEDULER (main) ==============
 def main():
-    import schedule
-    # Pianifichiamo di controllare ogni minuto
     schedule.every(1).minutes.do(check_run_script)
     print("Scheduler avviato (controllo ogni minuto l’ora in Europe/Rome).")
 
     while True:
         schedule.run_pending()
         time.sleep(10)
-        
-
 
 if __name__ == "__main__":
     try:
