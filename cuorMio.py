@@ -293,9 +293,9 @@ def check_run_script():
     """
     rome_now = datetime.datetime.now(ZoneInfo("Europe/Rome"))
     # Selezioniamo MARTEDÌ: in Python weekday() restituisce: 0 lunedì, 1 martedì, etc.
-    if rome_now.weekday() == 1:  
+    if rome_now.weekday() == 2:  
         # Esempio di condizione: per testing ho messo un orario fittizio (es. 16:15)
-        if rome_now.hour == 16 and rome_now.minute == 45:
+        if rome_now.hour == 16 and rome_now.minute == 48:
             print("** E’ martedì 23:59 in Italia! Eseguo run_script() **", flush=True)
             run_script()
         else:
