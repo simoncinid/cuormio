@@ -140,11 +140,19 @@ def init_shopify_session():
     print("Shopify session inizializzata.", flush=True)
 
 def get_last_week_range():
+    """
+    Calcola l'intervallo da venerdì 00:00 (della settimana precedente) a giovedì 23:59 (di questa settimana).
+    Supponiamo che lo script venga eseguito di venerdì alle 06:00.
+    """
     now = datetime.datetime.now()
+    # Se oggi è venerdì (weekday() == 4) allora:
     today_date = now.date()
-    wednesday_date = today_date - datetime.timedelta(days=6)
-    start = datetime.datetime(wednesday_date.year, wednesday_date.month, wednesday_date.day, 0, 0, 0)
-    end = datetime.datetime(today_date.year, today_date.month, today_date.day, 23, 59, 59)
+    # Il "start" è il venerdì della settimana precedente (7 giorni fa)
+    start_date = today_date - datetime.timedelta(days=7)
+    # Il "end" è giovedì di ieri (oggi - 1 giorno)
+    end_date = today_date - datetime.timedelta(days=1)
+    start = datetime.datetime(start_date.year, start_date.month, start_date.day, 0, 0, 0)
+    end = datetime.datetime(end_date.year, end_date.month, end_date.day, 23, 59, 59)
     created_at_min = start.isoformat() + "Z"
     created_at_max = end.isoformat() + "Z"
     return created_at_min, created_at_max
@@ -155,7 +163,7 @@ def get_orders_in_range():
         created_at_min=created_at_min,
         created_at_max=created_at_max,
         status='any',
-        limit=250
+        limit=500
     )
     orders.reverse()
     print(f"Trovati {len(orders)} ordini da {created_at_min} a {created_at_max}.", flush=True)
