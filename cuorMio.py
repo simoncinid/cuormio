@@ -228,6 +228,8 @@ def run_script():
             continue
 
         order_info = extract_order_info(order)
+        print(order_info)
+        
         raw_date = order_info["dataAcquisto"]
         date_obj = parser.parse(raw_date)
         formatted_date = date_obj.strftime("%d/%m/%Y")
@@ -295,7 +297,7 @@ def check_run_script():
     # Selezioniamo MARTEDÌ: in Python weekday() restituisce: 0 lunedì, 1 martedì, etc.
     if rome_now.weekday() == 2:  
         # Esempio di condizione: per testing ho messo un orario fittizio (es. 16:15)
-        if rome_now.hour == 16 and rome_now.minute == 48:
+        if rome_now.hour == 16 and rome_now.minute == 53:
             print("** E’ martedì 23:59 in Italia! Eseguo run_script() **", flush=True)
             run_script()
         else:
