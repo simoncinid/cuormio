@@ -60,9 +60,11 @@ def create_field_value(contact_id, field_id, value):
         data = response.json()
         created_id = data.get("fieldValue", {}).get("id")
         print(f"[OK] FieldValue creato per contatto {contact_id}, campo {field_id} con valore '{value}'. Nuovo ID: {created_id}")
+        sys.stdout.flush()
         return created_id
     else:
         print(f"[ERRORE] Creazione fallita per contatto {contact_id}, campo {field_id}: {response.text}")
+        sys.stdout.flush()
         return None
 
 def get_contact_by_email(email):
@@ -79,9 +81,11 @@ def get_contact_by_email(email):
             return contacts[0]
         else:
             print("Nessun contatto trovato per email:", email)
+            sys.stdout.flush()
             return None
     else:
         print("Errore nella richiesta del contatto:", response.text)
+        sys.stdout.flush()
         return None
 
 # ======== Google Sheets con Service Account ========
@@ -94,6 +98,7 @@ def init_google_sheets_service():
     creds = Credentials.from_service_account_info(json_data, scopes=["https://www.googleapis.com/auth/spreadsheets"])
     service = build("sheets", "v4", credentials=creds)
     print("Google Sheets service inizializzato (Service Account).")
+    sys.stdout.flush()
     return service
 
 def read_sheet(service):
@@ -116,6 +121,7 @@ def insert_row_to_sheet(service, values_list):
         body=body
     ).execute()
     print(f"Riga inserita in {range_to_update}: {values_list}")
+    sys.stdout.flush()
     return result
 
 def cerca_data_primo_ordine(service, email):
@@ -130,6 +136,7 @@ def init_shopify_session():
     session = shopify.Session(SHOP_URL, API_VERSION, ACCESS_TOKEN)
     shopify.ShopifyResource.activate_session(session)
     print("Shopify session inizializzata.")
+    sys.stdout.flush()
 
 def get_last_week_range():
     """
@@ -154,6 +161,7 @@ def get_orders_in_range():
     )
     orders.reverse()
     print(f"Trovati {len(orders)} ordini da {created_at_min} a {created_at_max}.")
+    sys.stdout.flush()
     return orders
 
 def extract_order_info(order):
@@ -224,6 +232,7 @@ def run_script():
         ac_contact = get_contact_by_email(order_info["email"])
         if not ac_contact:
             print(f"Contatto ActiveCampaign non trovato per {order_info['email']}")
+            sys.stdout.flush()
             continue
 
         ac_contact_id = ac_contact.get("id")
@@ -246,6 +255,7 @@ def run_script():
             id_field39 = create_field_value(ac_contact_id, "39", formatted_date) # Data primo acquisto
             id_field38 = create_field_value(ac_contact_id, "38", formatted_date) # Data ultimo acquisto
             print(f"FieldValue creato: id {id_field39} (Data primo acquisto), id {id_field38} (Data ultimo acquisto).")
+            sys.stdout.flush()
 
         elif orders_count == 2:
             tot = f"€ {order_info['totaleOrdine']}"
@@ -269,8 +279,10 @@ def run_script():
             id_field38 = create_field_value(ac_contact_id, "38", formatted_date) # Data ultimo acquisto
             id_field40 = create_field_value(ac_contact_id, "40", formatted_date) # Data secondo acquisto
             print(f"FieldValue creato: id {id_field38} (Data ultimo acquisto), id {id_field40} (Data secondo acquisto).")
+            sys.stdout.flush()
 
     print("Processo completato.")
+    sys.stdout.flush()
 
 def check_run_script():
     """
@@ -282,19 +294,24 @@ def check_run_script():
     if rome_now.weekday() == 2:  # 1 = Martedì
         if rome_now.hour == 16 and rome_now.minute == 15:
             print("** E’ martedì 23:59 in Italia! Eseguo run_script() **")
+            sys.stdout.flush()
             run_script()
         else:
             print(f"Ora Roma {rome_now}, non è martedì 23:59, skip.")
+            sys.stdout.flush()
     else:
         print(f"Ora Roma {rome_now}, non è martedì, skip.")
+        sys.stdout.flush()
 
 def main():
     schedule.every(1).minutes.do(check_run_script)
     print("Scheduler avviato (controllo ogni minuto l’ora in Europe/Rome).")
+    sys.stdout.flush()
 
     while True:
         schedule.run_pending()
         print("A")
+        sys.stdout.flush()
         time.sleep(10)
 
 if __name__ == "__main__":
@@ -302,4 +319,5 @@ if __name__ == "__main__":
         main()
     except Exception as e:
         print("Si è verificato un errore:", e)
+        sys.stdout.flush()
         sys.exit(1)
