@@ -280,7 +280,7 @@ def check_run_script():
     rome_now = datetime.datetime.now(ZoneInfo("Europe/Rome"))
     # 0 = Lun, 1 = Mar, 2 = Mer...
     if rome_now.weekday() == 2:  # 1 = Martedì
-        if rome_now.hour == 15 and rome_now.minute == 59:
+        if rome_now.hour == 16 and rome_now.minute == 15:
             print("** E’ martedì 23:59 in Italia! Eseguo run_script() **")
             run_script()
         else:
