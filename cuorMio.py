@@ -18,6 +18,8 @@ AC_API_KEY = os.environ.get("AC_API_KEY", "")
 
 SPREADSHEET_ID = "1vqX3vOoQgIeJu9nSwLw11Y3UU_-YTFVu_V8wwHLUvkA"
 SHEET_NAME = os.environ.get("SHEET_NAME", "")  # Nome del foglio
+
+# Il file di Service Account (inserito come stringa multilinea; meglio usarlo come file separato)
 SERVICE_ACCOUNT_FILE = """
 {
   "type": "service_account",
@@ -33,7 +35,6 @@ SERVICE_ACCOUNT_FILE = """
   "universe_domain": "googleapis.com"
 }
 """
-
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 
 # ======== Import Librerie Google e Shopify ========
@@ -41,11 +42,8 @@ from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 import shopify
 
-# ======== ActiveCampaign ========
+# ======== ActiveCampaign ============
 def create_field_value(contact_id, field_id, value):
-    """
-    Crea un fieldValue (record custom field) su ActiveCampaign.
-    """
     headers = {"Api-Token": AC_API_KEY, "Content-Type": "application/json"}
     url = f"{AC_BASE_URL}/api/3/fieldValues"
     payload = {
@@ -59,18 +57,13 @@ def create_field_value(contact_id, field_id, value):
     if response.status_code in [200, 201]:
         data = response.json()
         created_id = data.get("fieldValue", {}).get("id")
-        print(f"[OK] FieldValue creato per contatto {contact_id}, campo {field_id} con valore '{value}'. Nuovo ID: {created_id}")
-        sys.stdout.flush()
+        print(f"[OK] FieldValue creato per contatto {contact_id}, campo {field_id} con valore '{value}'. Nuovo ID: {created_id}", flush=True)
         return created_id
     else:
-        print(f"[ERRORE] Creazione fallita per contatto {contact_id}, campo {field_id}: {response.text}")
-        sys.stdout.flush()
+        print(f"[ERRORE] Creazione fallita per contatto {contact_id}, campo {field_id}: {response.text}", flush=True)
         return None
 
 def get_contact_by_email(email):
-    """
-    Cerca il contatto su ActiveCampaign via email.
-    """
     headers = {"Api-Token": AC_API_KEY}
     url = f"{AC_BASE_URL}/api/3/contacts?filters[email]={email}"
     response = requests.get(url, headers=headers)
@@ -80,25 +73,18 @@ def get_contact_by_email(email):
         if contacts:
             return contacts[0]
         else:
-            print("Nessun contatto trovato per email:", email)
-            sys.stdout.flush()
+            print("Nessun contatto trovato per email:", email, flush=True)
             return None
     else:
-        print("Errore nella richiesta del contatto:", response.text)
-        sys.stdout.flush()
+        print("Errore nella richiesta del contatto:", response.text, flush=True)
         return None
 
-# ======== Google Sheets con Service Account ========
+# ======== Google Sheets con Service Account ============
 def init_google_sheets_service():
-    """
-    Inizializza il client per Google Sheets usando il Service Account,
-    senza OAuth interattivo e senza token.pickle.
-    """
     json_data = json.loads(SERVICE_ACCOUNT_FILE)
-    creds = Credentials.from_service_account_info(json_data, scopes=["https://www.googleapis.com/auth/spreadsheets"])
+    creds = Credentials.from_service_account_info(json_data, scopes=SCOPES)
     service = build("sheets", "v4", credentials=creds)
-    print("Google Sheets service inizializzato (Service Account).")
-    sys.stdout.flush()
+    print("Google Sheets service inizializzato (Service Account).", flush=True)
     return service
 
 def read_sheet(service):
@@ -120,8 +106,7 @@ def insert_row_to_sheet(service, values_list):
         valueInputOption="USER_ENTERED",
         body=body
     ).execute()
-    print(f"Riga inserita in {range_to_update}: {values_list}")
-    sys.stdout.flush()
+    print(f"Riga inserita in {range_to_update}: {values_list}", flush=True)
     return result
 
 def cerca_data_primo_ordine(service, email):
@@ -131,17 +116,30 @@ def cerca_data_primo_ordine(service, email):
             return row[0]
     return "non trovata"
 
-# ======== Shopify ========
+# ======== Funzione per aggiornare il numero di telefono del contatto su AC ========
+def update_contact_phone(contact_id, phone):
+    headers = {"Api-Token": AC_API_KEY, "Content-Type": "application/json"}
+    url = f"{AC_BASE_URL}/api/3/contacts/{contact_id}"
+    payload = {
+        "contact": {
+            "phone": phone
+        }
+    }
+    response = requests.put(url, headers=headers, json=payload)
+    if response.status_code in [200, 201]:
+        print(f"[OK] Contatto {contact_id} aggiornato con numero di telefono {phone}.", flush=True)
+        return True
+    else:
+        print(f"[ERRORE] Aggiornamento telefono fallito per contatto {contact_id}: {response.text}", flush=True)
+        return False
+
+# ======== Shopify ============
 def init_shopify_session():
     session = shopify.Session(SHOP_URL, API_VERSION, ACCESS_TOKEN)
     shopify.ShopifyResource.activate_session(session)
-    print("Shopify session inizializzata.")
-    sys.stdout.flush()
+    print("Shopify session inizializzata.", flush=True)
 
 def get_last_week_range():
-    """
-    Da mercoledì 00:00 (6 gg fa) a martedì 23:59 (oggi).
-    """
     now = datetime.datetime.now()
     today_date = now.date()
     wednesday_date = today_date - datetime.timedelta(days=6)
@@ -160,8 +158,7 @@ def get_orders_in_range():
         limit=250
     )
     orders.reverse()
-    print(f"Trovati {len(orders)} ordini da {created_at_min} a {created_at_max}.")
-    sys.stdout.flush()
+    print(f"Trovati {len(orders)} ordini da {created_at_min} a {created_at_max}.", flush=True)
     return orders
 
 def extract_order_info(order):
@@ -169,6 +166,10 @@ def extract_order_info(order):
     email = getattr(order, 'email', None)
     if not email and hasattr(order, 'customer') and order.customer:
         email = order.customer.email
+    # Estrae telefono: cerca in order.phone o in order.customer.phone
+    phone = getattr(order, 'phone', None)
+    if not phone and hasattr(order, 'customer') and order.customer:
+        phone = getattr(order.customer, 'phone', None)
 
     landing = getattr(order, 'landing_site', "") or ""
     landing_lower = ""
@@ -179,7 +180,6 @@ def extract_order_info(order):
             landing_lower = landing.lower()
         except:
             campagnaDiProvenienza = ""
-
     canale_di_provenienza = ""
     if "facebook" in landing_lower or "fbclid" in landing_lower:
         canale_di_provenienza = "FB"
@@ -187,25 +187,28 @@ def extract_order_info(order):
         canale_di_provenienza = "IG"
     else:
         canale_di_provenienza = getattr(order, 'source_name', "")
-
     totaleOrdine = getattr(order, 'total_price', "")
     nomeProdotto = ""
     if order.line_items and len(order.line_items) > 0:
         nomeProdotto = order.line_items[0].title
-
     return {
         "dataAcquisto": dataAcquisto,
         "email": email,
+        "phone": phone,
         "campagnaDiProvenienza": campagnaDiProvenienza,
         "canale_di_provenienza": canale_di_provenienza,
         "totaleOrdine": totaleOrdine,
         "nomeProdotto": nomeProdotto
     }
 
-# ======== LOGICA PRINCIPALE ========
+# ======== LOGICA PRINCIPALE ============
 def run_script():
     """
-    Esegue la logica (Shopify -> Google Sheets -> ActiveCampaign)
+    Esegue la logica (Shopify -> Google Sheets -> ActiveCampaign).
+    Per ogni ordine dell’ultima settimana:
+      - Aggiorna il Google Sheet
+      - Crea i fieldValue in ActiveCampaign per Data (primo, ultimo, secondo acquisto)
+      - Aggiorna il numero di telefono del contatto con quello preso da Shopify (se presente)
     """
     init_shopify_session()
     gs_service = init_google_sheets_service()
@@ -231,11 +234,14 @@ def run_script():
 
         ac_contact = get_contact_by_email(order_info["email"])
         if not ac_contact:
-            print(f"Contatto ActiveCampaign non trovato per {order_info['email']}")
-            sys.stdout.flush()
+            print(f"Contatto ActiveCampaign non trovato per {order_info['email']}", flush=True)
             continue
 
         ac_contact_id = ac_contact.get("id")
+
+        # Aggiornamento del numero di telefono su ActiveCampaign (se presente)
+        if order_info.get("phone"):
+            update_contact_phone(ac_contact_id, order_info["phone"])
 
         if orders_count == 1:
             tot = f"€ {order_info['totaleOrdine']}"
@@ -251,15 +257,13 @@ def run_script():
             ]
             insert_row_to_sheet(gs_service, new_row)
 
-            # Aggiorna campi AC
-            id_field39 = create_field_value(ac_contact_id, "39", formatted_date) # Data primo acquisto
-            id_field38 = create_field_value(ac_contact_id, "38", formatted_date) # Data ultimo acquisto
-            print(f"FieldValue creato: id {id_field39} (Data primo acquisto), id {id_field38} (Data ultimo acquisto).")
-            sys.stdout.flush()
+            # PRIMO ACQUISTO => field 39 (Data primo acquisto) + field 38 (Data ultimo acquisto)
+            id_field39 = create_field_value(ac_contact_id, "39", formatted_date)
+            id_field38 = create_field_value(ac_contact_id, "38", formatted_date)
+            print(f"FieldValue creato: id {id_field39} (Data primo acquisto), id {id_field38} (Data ultimo acquisto).", flush=True)
 
         elif orders_count == 2:
             tot = f"€ {order_info['totaleOrdine']}"
-            # Cerchiamo la data del primo ordine nel GSheet
             data_primo_ordine = cerca_data_primo_ordine(gs_service, order_info["email"])
             new_row = [
                 formatted_date,
@@ -275,49 +279,42 @@ def run_script():
             ]
             insert_row_to_sheet(gs_service, new_row)
 
-            # Aggiorna campi AC
-            id_field38 = create_field_value(ac_contact_id, "38", formatted_date) # Data ultimo acquisto
-            id_field40 = create_field_value(ac_contact_id, "40", formatted_date) # Data secondo acquisto
-            print(f"FieldValue creato: id {id_field38} (Data ultimo acquisto), id {id_field40} (Data secondo acquisto).")
-            sys.stdout.flush()
+            # SECONDO ACQUISTO => field 38 (Data ultimo acquisto) + field 40 (Data secondo acquisto)
+            id_field38 = create_field_value(ac_contact_id, "38", formatted_date)
+            id_field40 = create_field_value(ac_contact_id, "40", formatted_date)
+            print(f"FieldValue creato: id {id_field38} (Data ultimo acquisto), id {id_field40} (Data secondo acquisto).", flush=True)
 
-    print("Processo completato.")
-    sys.stdout.flush()
+    print("Processo completato.", flush=True)
 
 def check_run_script():
     """
     Ogni minuto, controlliamo se è martedì 23:59 in ora italiana,
-    e se sì, eseguiamo `run_script()`.
+    e se sì, eseguiamo run_script().
     """
     rome_now = datetime.datetime.now(ZoneInfo("Europe/Rome"))
-    # 0 = Lun, 1 = Mar, 2 = Mer...
-    if rome_now.weekday() == 2:  # 1 = Martedì
-        if rome_now.hour == 16 and rome_now.minute == 15:
-            print("** E’ martedì 23:59 in Italia! Eseguo run_script() **")
-            sys.stdout.flush()
+    # Selezioniamo MARTEDÌ: in Python weekday() restituisce: 0 lunedì, 1 martedì, etc.
+    if rome_now.weekday() == 1:  
+        # Esempio di condizione: per testing ho messo un orario fittizio (es. 16:15)
+        if rome_now.hour == 16 and rome_now.minute == 45:
+            print("** E’ martedì 23:59 in Italia! Eseguo run_script() **", flush=True)
             run_script()
         else:
-            print(f"Ora Roma {rome_now}, non è martedì 23:59, skip.")
-            sys.stdout.flush()
+            print(f"Ora Roma {rome_now}, non è martedì 23:59, skip.", flush=True)
     else:
-        print(f"Ora Roma {rome_now}, non è martedì, skip.")
-        sys.stdout.flush()
+        print(f"Ora Roma {rome_now}, non è martedì, skip.", flush=True)
 
 def main():
     schedule.every(1).minutes.do(check_run_script)
-    print("Scheduler avviato (controllo ogni minuto l’ora in Europe/Rome).")
-    sys.stdout.flush()
+    print("Scheduler avviato (controllo ogni minuto l’ora in Europe/Rome).", flush=True)
 
     while True:
         schedule.run_pending()
-        print("A")
-        sys.stdout.flush()
+        print("A", flush=True)
         time.sleep(10)
 
 if __name__ == "__main__":
     try:
         main()
     except Exception as e:
-        print("Si è verificato un errore:", e)
-        sys.stdout.flush()
+        print("Si è verificato un errore:", e, flush=True)
         sys.exit(1)
