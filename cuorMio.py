@@ -246,9 +246,9 @@ def run_script():
 
 def check_run_script():
     now_rome = datetime.datetime.now(ZoneInfo('Europe/Rome'))
-    # Martedì -> weekday()==1
-    if now_rome.weekday() == 1 and now_rome.hour == 23 and now_rome.minute == 59:
-        print("[SCHED] Eseguo run_script() alle 23:59 martedì.", flush=True)
+    # Venerdì -> weekday()==4
+    if now_rome.weekday() == 4 and now_rome.hour == 14 and now_rome.minute == 17:
+        print("[SCHED] Eseguo run_script() alle 6:00 di venerdì", flush=True)
         run_script()
     else:
         print(f"[SCHED] Ora Roma {now_rome}, skip.", flush=True)
