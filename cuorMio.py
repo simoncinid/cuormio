@@ -159,7 +159,7 @@ def get_orders_in_range():
         created_at_min=created_at_min,
         created_at_max=created_at_max,
         status='any',
-        limit=500
+        limit=250
     )
     orders.reverse()
     print(f"[OK] Trovati {len(orders)} ordini da {created_at_min} a {created_at_max}.", flush=True)
@@ -259,7 +259,7 @@ def run_script():
 def check_run_script():
     now_rome = datetime.datetime.now(ZoneInfo('Europe/Rome'))
     # Venerdì -> weekday()==4
-    if now_rome.weekday() == 4 and now_rome.hour == 14 and now_rome.minute == 40:
+    if now_rome.weekday() == 4 and now_rome.hour == 14 and now_rome.minute == 45:
         print("[SCHED] Eseguo run_script() alle 6:00 di venerdì", flush=True)
         run_script()
     else:
