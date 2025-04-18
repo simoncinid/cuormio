@@ -22,7 +22,19 @@ SHEET_NAME     = os.environ.get("SHEET_NAME", "")  # Nome del foglio
 
 # Service Account JSON (string multilinea o da file esterno)
 SERVICE_ACCOUNT_FILE = """
-<YOUR SERVICE ACCOUNT JSON HERE>
+{
+  "type": "service_account",
+  "project_id": "trascrizione-intervista-rds",
+  "private_key_id": "f73a9d20338b08a010866c56a6f735cea6b56d7f",
+  "private_key": "-----BEGIN PRIVATE KEY-----\\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCgy6cY/uROJQKo\\nYeNAcx+caiZU1ydZtILbr4s62GJXemHHP3nEaclbK2mIS5wqKc5jjWAcqbMTAI4F\\nq939kM4DeMNmEnMqdkhr0fhHkulq+QNmCA3/Fc8o9Qwc4rD4g0NHMBHKR4o+Jj5W\\nfKxsZL+2NBk7h6BAmIjGBXfjgCaTt2OrmsiPPyhDa5nQlelTVwXiRdLf5l/t7+pb\\n4O3A8dmhyzuLhukSv1YDJAZDUICTcclCiOvri5F2w6eippP5MwSTyUsEY+0GVeI5\\nJL7IlgEoWiuCtqrCS5gA515a6RKsqoM1/69K1bCeYRtk243GwLdSOAbxtgqLqA8V\\ntG6S+d+5AgMBAAECggEABISkbdnfrWhx0ixp98okVb9P02t2QhmF4clldqJU5RNd\\nwv0AHWpBi6vFG9zQBwlEsNxsmnGURBDsbLFfG/xhJYzTpL8Y+FT5hPoR6WTx5R0Z\\nINlSF1xUBVkZXYhrI5iAn/P0VAQ9mLB3aPO43pTYJDUDjn4pnRcMJNBLhZt4ugbO\\nN+QRVJyYhku4GcecFyzEhKa0eug28lV0g+RUlDCtnFHbYhsZ5PijC8NF6uk0dRUC\\nwgWeb91ZD/6beKvfaEA73V8YjjzhFuHBMV+hsQ4WaquJ1WssQ1teQvKq5Dp+4hq1\\nEQtn/ZSubA9VHljCJU76iM+CI9B12RSw7kRXfZA2gQKBgQDcRkzyAdLzqDvVw8s6\\nyEQlqpFifx+SSWJWoKLwUfpKGsO0UEKNULlcV45cIN4/6eCM6/7SyZhLFCa0qdeA\\nhqlnI7Slql1u+byO5jd6r2hYLybJ0PLf2Opd9FWGq3fE40qFqrQzz9gWogb6hiJW\\n65uAi71PsWGkK1d/LlOOXSoMGQKBgQC6387QsFOC0YIl2UGy0C9Y9xmx1un+tYbb\\nEYYTDDqqArCLegkRTd7FIr9YOlcX0iotQAkqX37J6tOEn4MXmcpPtm3EGPly5Dxz\\noKlqpk+5IhP2lnJxPdB+VQHpogsKjtYPyjQxLXb2iaCnn0d/1KnteRxCtckDQFXX\\n2dsbBxLkoQKBgHsoCylb/7gfnaS9Hcm14vQ0U6kAboR55zOMCM3Y59m68STFoxAj\\nzB9nDL9R2TFe8B+aaxUrhaykjaeBNm4z3E9AVWYyxJ6hnt0+tlIv9GUpp8Q6wTCK\\ntS7mx1LOV96LPkVR1gMJ+EVfPgugJ171yDGs76G5CWCiov8GxczZJgMxAoGBAJYc\\nWeFBApQ+/zCwCBo/KQlp1HYKkQRNhPpMZUq/tBAFARPI/6eqyZvJgbK5imRUKhUX\\nL0WeWBaSTz5lc8RtgRnvDNVMynQD6ptnHy/QUJICUc7uoxdb9DLGzjaCOCRPAJzG\\nbI5kWv9HJon/ZEvG5IkhlBXyOHooH8y3700SrZaBAoGBAMuPUpJRl356thYU3/vP\\nVu4XDwwPy+mRyjE1jw+3STlmW96JbDUT+nmA2TysM0MVLlrEMKsnZl6Xq5piVjB9\\n9TfE3LCEBntFGxUgRRTInI6AEjv9D43xl323S6pXKivRTzkYlXQEH6v4yPY70Lc3\\nYk07YhItfZPe3pjYHvYmuTD6\\n-----END PRIVATE KEY-----\\n",
+  "client_email": "kpi-marketing-automation@trascrizione-intervista-rds.iam.gserviceaccount.com",
+  "client_id": "111553854552653368425",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/kpi-marketing-automation%40trascrizione-intervista-rds.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}
 """
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 
