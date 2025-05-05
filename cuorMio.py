@@ -147,10 +147,10 @@ def init_shopify_session():
 
 
 def get_last_week_range():
-    today = datetime.datetime.now().date()
-    start = datetime.datetime.combine(today - datetime.timedelta(days=7), datetime.time(0,0))
-    end = datetime.datetime.combine(today - datetime.timedelta(days=1), datetime.time(23,59,59))
+    start = datetime.datetime(2025, 4, 25, 0, 0, 0)
+    end = datetime.datetime(2025, 5, 1, 23, 59, 59)
     return start.isoformat() + "Z", end.isoformat() + "Z"
+
 
 
 def get_orders_in_range():
@@ -259,7 +259,7 @@ def run_script():
 def check_run_script():
     now_rome = datetime.datetime.now(ZoneInfo('Europe/Rome'))
     # Venerdì -> weekday()==4
-    if now_rome.weekday() == 0 and now_rome.hour == 11 and now_rome.minute == 45:
+    if now_rome.weekday() == 0 and now_rome.hour == 12 and now_rome.minute == 5:
         print("[SCHED] Eseguo run_script() alle 6:00 di venerdì", flush=True)
         run_script()
     else:
