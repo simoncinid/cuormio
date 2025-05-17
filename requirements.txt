@@ -1,0 +1,6 @@
+schedule
+requests
+google-auth-oauthlib
+google-api-python-client
+shopifyapi
+python-dateutil
