@@ -234,6 +234,8 @@ def run_script():
     gs_service = init_google_sheets_service()
     orders = get_orders_in_range()
 
+    # Raggruppa ordini per email
+    orders_by_email = {}
     for order in orders:
         time.sleep(4)
         if not getattr(order, 'customer', None):
@@ -248,55 +250,92 @@ def run_script():
             continue
 
         info = extract_order_info(order)
-        print(f"[INFO] Order {order.id}: email={info['email']}, phone={info['phone']}", flush=True)
+        email = info['email']
+        
+        if email not in orders_by_email:
+            orders_by_email[email] = []
+        
+        orders_by_email[email].append({
+            'order': order,
+            'info': info,
+            'orders_count': orders_count
+        })
 
-        date_obj = parser.parse(info['created_at'])
-        formatted_date = date_obj.strftime("%d/%m/%Y")
-
-        ac_contact = get_contact_by_email(info['email'])
-        if not ac_contact:
-            continue
-        ac_id = ac_contact.get('id')
-
-        if info['phone']:
-            update_contact_phone(ac_id, info['phone'])
-
-        tot = f"€ {info['total_price']}"
-        tot = tot.replace('.', ',')
-        if orders_count == 1:
-            row = [formatted_date, '1', info['email'], info['campagna'], info['canale'], None, None, None, None, tot, info['product']]
-            insert_row_to_sheet(gs_service, row)
-            create_field_value(ac_id, '39', formatted_date)
-            create_field_value(ac_id, '38', formatted_date)
-
-            # === INTEGRAZIONE AUTOMAZIONE ACTIVE CAMPAIGN (PRIMO ACQUISTO) ===
-            if info['product'] == "primo acquisto no cofanetto":
-                automation_id = 52
-                automation_label = "Primo Acquisto No Cofanetto Degustazione"
-            else:
-                automation_id = 32
-                automation_label = "Acquisto Cofanetto Degustazione"
-
-            if automation_is_active_for_contact(ac_id, automation_id):
-                print(f"[INFO] Automazione '{automation_label}' già attiva (ID {automation_id})", flush=True)
-            else:
-                if add_contact_to_automation(ac_id, automation_id):
-                    time.sleep(2)
-                    if automation_is_active_for_contact(ac_id, automation_id):
-                        print(f"[INFO] Automazione '{automation_label}' aggiunta e ora attiva (ID {automation_id})", flush=True)
-                    else:
-                        print(f"[ERRORE] Automazione '{automation_label}' NON trovata dopo aggiunta (ID {automation_id})", flush=True)
-                else:
-                    print(f"[ERRORE] Fallita aggiunta automazione '{automation_label}' (ID {automation_id})", flush=True)
-
+    # Processa ogni gruppo di ordini per email
+    for email, email_orders in orders_by_email.items():
+        # Ordina per data (più recente prima)
+        email_orders.sort(key=lambda x: x['order'].created_at, reverse=True)
+        
+        # Se c'è solo un ordine, processalo normalmente
+        if len(email_orders) == 1:
+            order_data = email_orders[0]
+            process_single_order(order_data['order'], order_data['info'], order_data['orders_count'], gs_service)
         else:
-            prima = cerca_data_primo_ordine(gs_service, info['email'])
-            row = [formatted_date, '2', info['email'], info['campagna'], info['canale'], None, None, prima, None, tot, info['product']]
-            insert_row_to_sheet(gs_service, row)
-            create_field_value(ac_id, '38', formatted_date)
-            create_field_value(ac_id, '40', formatted_date)
+            # Se ci sono più ordini per la stessa email, processa il primo come secondo acquisto
+            # e il secondo come primo acquisto (ordine temporale inverso)
+            for i, order_data in enumerate(email_orders):
+                if i == 0:
+                    # Primo ordine del gruppo (più recente) - tratta come secondo acquisto
+                    process_single_order(order_data['order'], order_data['info'], 2, gs_service)
+                elif i == 1:
+                    # Secondo ordine del gruppo (meno recente) - tratta come primo acquisto
+                    process_single_order(order_data['order'], order_data['info'], 1, gs_service)
+                # Ignora ordini successivi (i >= 2) perché non entrano nell'automazione
 
     print("[OK] Processo completato.", flush=True)
+
+def process_single_order(order, info, orders_count, gs_service):
+    """Processa un singolo ordine con la logica esistente"""
+    time.sleep(4)
+    
+    print(f"[INFO] Order {order.id}: email={info['email']}, phone={info['phone']}, orders_count={orders_count}", flush=True)
+
+    date_obj = parser.parse(info['created_at'])
+    formatted_date = date_obj.strftime("%d/%m/%Y")
+
+    ac_contact = get_contact_by_email(info['email'])
+    if not ac_contact:
+        return
+    ac_id = ac_contact.get('id')
+
+    if info['phone']:
+        update_contact_phone(ac_id, info['phone'])
+
+    tot = f"€ {info['total_price']}"
+    tot = tot.replace('.', ',')
+    
+    if orders_count == 1:
+        row = [formatted_date, '1', info['email'], info['campagna'], info['canale'], None, None, None, None, tot, info['product']]
+        insert_row_to_sheet(gs_service, row)
+        create_field_value(ac_id, '39', formatted_date)
+        create_field_value(ac_id, '38', formatted_date)
+
+        # === INTEGRAZIONE AUTOMAZIONE ACTIVE CAMPAIGN (PRIMO ACQUISTO) ===
+        if info['product'] == "primo acquisto no cofanetto":
+            automation_id = 52
+            automation_label = "Primo Acquisto No Cofanetto Degustazione"
+        else:
+            automation_id = 32
+            automation_label = "Acquisto Cofanetto Degustazione"
+
+        if automation_is_active_for_contact(ac_id, automation_id):
+            print(f"[INFO] Automazione '{automation_label}' già attiva (ID {automation_id})", flush=True)
+        else:
+            if add_contact_to_automation(ac_id, automation_id):
+                time.sleep(2)
+                if automation_is_active_for_contact(ac_id, automation_id):
+                    print(f"[INFO] Automazione '{automation_label}' aggiunta e ora attiva (ID {automation_id})", flush=True)
+                else:
+                    print(f"[ERRORE] Automazione '{automation_label}' NON trovata dopo aggiunta (ID {automation_id})", flush=True)
+            else:
+                print(f"[ERRORE] Fallita aggiunta automazione '{automation_label}' (ID {automation_id})", flush=True)
+
+    else:
+        prima = cerca_data_primo_ordine(gs_service, info['email'])
+        row = [formatted_date, '2', info['email'], info['campagna'], info['canale'], None, None, prima, None, tot, info['product']]
+        insert_row_to_sheet(gs_service, row)
+        create_field_value(ac_id, '38', formatted_date)
+        create_field_value(ac_id, '40', formatted_date)
 
 # ======== Scheduler ========
 
